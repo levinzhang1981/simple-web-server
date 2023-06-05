@@ -12,12 +12,15 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Server {
 
     private static final Logger log = LogManager.getLogger(Server.class);
     private static final int DEFAULT_PORT = 8080;
+    private static final RequestPool REQUEST_POOL = new RequestPool(50,10000);
+
 
     public static void main(String[] args) throws IOException, InterruptedException {
 
@@ -27,16 +30,35 @@ public class Server {
 
     public void startListen(int port) throws IOException, InterruptedException {
 
-        try (ServerSocket socket = new ServerSocket(port)) {
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
             log.info("Web server listening on port %d (press CTRL-C to quit)", port);
+            Socket socket = null;
             while (true) {
-                TimeUnit.MILLISECONDS.sleep(1);
-                handle(socket);
+                socket = serverSocket.accept();
+                Socket finalSocket = socket;
+                REQUEST_POOL.execute(()->{
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(finalSocket.getInputStream()))
+                    ) {
+                        List<String> requestContent = new ArrayList<>();
+                        String temp = reader.readLine();
+                        while(temp != null && temp.length() > 0) {
+                            requestContent.add(temp);
+                            temp = reader.readLine();
+                        }
+                        Request req = new Request(requestContent);
+                        Response res = new Response(req);
+                        res.write(finalSocket.getOutputStream());
+                    } catch (IOException e) {
+                        log.error("IO Error", e);
+                    }
+                });
             }
         }
     }
 
-    private static void handle(ServerSocket socket) {
+
+
+    public static void handle(ServerSocket socket) {
         try (Socket clientSocket = socket.accept();
              BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))
         ) {
