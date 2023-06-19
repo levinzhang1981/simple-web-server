@@ -17,6 +17,10 @@ public class Response {
 
     private byte[] body;
 
+    private boolean isFile = false;
+
+    private File file;
+
     public List<String> getHeaders() {
         return new ArrayList<>(headers);
     }
@@ -28,26 +32,20 @@ public class Response {
                 fillHeaders(Status._200);
                 break;
             case GET:
-                try {
                     // TODO fix dir bug http://localhost:8080/src/test
                     String uri = req.getUri();
-                    File file = new File("." + uri);
+                    file = new File("." + uri);
                     if (file.isDirectory()) {
                         generateResponseForFolder(uri, file);
                     } else if (file.exists()) {
                         fillHeaders(Status._200);
                         setContentType(uri);
-                        fillResponse(getBytes(file));
+                        isFile = true;
                     } else {
                         log.info("File not found: %s", req.getUri());
                         fillHeaders(Status._404);
                         fillResponse(Status._404.toString());
                     }
-                } catch (IOException e) {
-                    log.error("Response Error", e);
-                    fillHeaders(Status._400);
-                    fillResponse(Status._400.toString());
-                }
                 break;
             default:
                 fillHeaders(Status._400);
@@ -58,14 +56,12 @@ public class Response {
 
     private void generateResponseForFolder(String uri, File file) {
         fillHeaders(Status._200);
-
         headers.add(ContentType.of("HTML"));
         StringBuilder result = new StringBuilder("<html><head><title>Index of ");
         result.append(uri);
         result.append("</title></head><body><h1>Index of ");
         result.append(uri);
         result.append("</h1><hr><pre>");
-
         // TODO add Parent Directory
         File[] files = file.listFiles();
         for (File subFile : files) {
@@ -75,18 +71,18 @@ public class Response {
         fillResponse(result.toString());
     }
 
-    private byte[] getBytes(File file) throws IOException {
-        int length = (int) file.length();
-        byte[] array = new byte[length];
-        try (InputStream in = new FileInputStream(file)) {
-            int offset = 0;
-            while (offset < length) {
-                int count = in.read(array, offset, (length - offset));
-                offset += count;
-            }
-        }
-        return array;
-    }
+//    private byte[] getBytes(File file) throws IOException {
+//        int length = (int) file.length();
+//        byte[] array = new byte[length];
+//        try (InputStream in = new FileInputStream(file)) {
+//            int offset = 0;
+//            while (offset < length) {
+//                int count = in.read(array, offset, (length - offset));
+//                offset += count;
+//            }
+//        }
+//        return array;
+//    }
 
     private void fillHeaders(Status status) {
         headers.add(Response.VERSION + " " + status.toString());
@@ -110,7 +106,16 @@ public class Response {
 			output.writeBytes("\r\n");
 			if (body != null) {
 				output.write(body);
-			}
+			}else if(isFile){
+                // read file
+                try( BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
+                        BufferedWriter bufferedWriter = new BufferedWriter(new BufferedWriter(new OutputStreamWriter(output)))){
+                    String line;
+                    while((line = bufferedReader.readLine())!=null){
+                        bufferedWriter.write(line);
+                    }
+                }
+            }
 			output.writeBytes("\r\n");
 			output.flush();
 		}

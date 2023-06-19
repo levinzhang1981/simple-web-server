@@ -9,10 +9,7 @@ scenarios:
     retrieve-resources: false
     requests:
       - http://127.0.0.1:8080
-      - http://127.0.0.1:8080/readme.md
-      - http://127.0.0.1:8080/src/main/java/liteweb/Server.java
-      - http://127.0.0.1:8080/readme.md
-      - http://127.0.0.1:8080/performance.yml
+      - http://127.0.0.1:8080/test.zip
 
 reporting:
   - module: final-stats
